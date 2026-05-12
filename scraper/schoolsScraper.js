@@ -28,7 +28,7 @@ class CookieJar {
       return res;
     });
     this.client.interceptors.request.use(cfg => {
-      const cookieStr = Object.entries(this.cookies).map(([k,v]) => ${k}=${v}).join('; ');
+      const cookieStr = Object.entries(this.cookies).map(([k,v]) => k+'='+v).join('; ');
       if (cookieStr) cfg.headers['Cookie'] = cookieStr;
       return cfg;
     });
@@ -60,7 +60,7 @@ async function login(username, password) {
   if (!csrf) throw new Error('Не удалось найти CSRF-токен');
   const loginRes = await jar.post('/login', {
     username, password, csrfmiddlewaretoken: csrf, next: '/'
-  }, { headers: { 'Referer': ${BASE}/login } });
+  }, { headers: { 'Referer': BASE+'/login' } });
   const $after = cheerio.load(loginRes.data);
   const isLoggedIn = $after('[href*="logout"]').length > 0;
   if (!isLoggedIn) {
@@ -81,7 +81,7 @@ async function login(username, password) {
 
 async function getGrades(sessionToken) {
   const { jar, studentId } = requireSession(sessionToken);
-  const url = studentId ? /pupil/${studentId}/dnevnik/ : '/dnevnik/';
+  const url = studentId ? '/pupil/'+studentId+'/dnevnik/' : '/dnevnik/';
   const res = await jar.get(url);
   const $ = cheerio.load(res.data);
   const subjects = [];
@@ -103,7 +103,8 @@ async function getGrades(sessionToken) {
 }
 
 async function getSchedule(sessionToken) {
-  const { jar, studentId } = requireSession(sessionToken);const url = studentId ? /pupil/${studentId}/dnevnik/ : '/dnevnik/';
+  const { jar, studentId } = requireSession(sessionToken);
+  const url = studentId ? '/pupil/'+studentId+'/dnevnik/' : '/dnevnik/';
   const res = await jar.get(url);
   const $ = cheerio.load(res.data);
   const schedule = {};
@@ -128,7 +129,7 @@ async function getSchedule(sessionToken) {
 
 async function getHomework(sessionToken) {
   const { jar, studentId } = requireSession(sessionToken);
-  const url = studentId ? /pupil/${studentId}/dnevnik/ : '/dnevnik/';
+  const url = studentId ? '/pupil/'+studentId+'/dnevnik/' : '/dnevnik/';
   const res = await jar.get(url);
   const $ = cheerio.load(res.data);
   const homework = [];
