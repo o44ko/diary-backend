@@ -10,4 +10,4 @@ app.use(express.json());
 app.use('/api', schoolsRouter);
 app.get('/health', (_, res) => res.json({ ok: true }));
 
-app.listen(PORT, () => console.log(Backend running on port ${PORT}));
+app.listen(PORT, () => console.log('Backend running on port ' + PORT));
