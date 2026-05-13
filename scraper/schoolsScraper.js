@@ -4,48 +4,24 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 
 const BASE = 'https://schools.by';
 const sessions = new Map();
-let cachedProxy = null;
-
-async function getFreshProxy() {
-  try {
-    const res = await axios.get('https://proxylist.geonode.com/api/proxy-list?limit=50&page=1&sort_by=lastChecked&sort_type=desc&country=BY,RU&protocols=http,https', { timeout: 10000 });
-    const proxies = res.data?.data || [];
-    for (const proxy of proxies) {
-      try {
-        const agent = new HttpsProxyAgent('http://'+proxy.ip+':'+proxy.port);
-        await axios.get('https://schools.by', { httpsAgent: agent, timeout: 8000 });
-        console.log('Proxy works:', proxy.ip+':'+proxy.port);
-        return 'http://'+proxy.ip+':'+proxy.port;
-      } catch { continue; }
-    }
-  } catch(e) { console.error('Proxy fetch error:', e.message); }
-  return null;
-}
-
-async function getProxy() {
-  if (cachedProxy) return cachedProxy;
-  cachedProxy = await getFreshProxy();
-  return cachedProxy;
-}
+const PROXY = 'http://178.124.67.254:8080';
 
 class CookieJar {
-  constructor(proxyUrl) {
+  constructor() {
     this.cookies = {};
-    const config = {
+    const agent = new HttpsProxyAgent(PROXY);
+    this.client = axios.create({
       baseURL: BASE,
       maxRedirects: 5,
       timeout: 15000,
+      httpsAgent: agent,
+      httpAgent: agent,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
       }
-    };
-    if (proxyUrl) {
-      config.httpsAgent = new HttpsProxyAgent(proxyUrl);
-      config.httpAgent = new HttpsProxyAgent(proxyUrl);
-    }
-    this.client = axios.create(config);
+    });
     this.client.interceptors.response.use(res => {
       const setCookie = res.headers['set-cookie'];
       if (setCookie) {
@@ -83,9 +59,7 @@ function requireSession(token) {
 }
 
 async function login(username, password) {
-  const proxyUrl = await getProxy();
-  if (!proxyUrl) throw new Error('Не удалось найти рабочий прокси. Попробуйте позже.');
-  const jar = new CookieJar(proxyUrl);
+  const jar = new CookieJar();
   const loginPageRes = await jar.get('/login');
   const $ = cheerio.load(loginPageRes.data);
   const csrf = $('input[name="csrfmiddlewaretoken"]').val();
@@ -100,7 +74,8 @@ async function login(username, password) {
     throw new Error(errMsg);
   }
   const name = $after('.user-name').first().text().trim();
-  const classInfo = $after('.class-name').first().text().trim();let studentId = null;
+  const classInfo = $after('.class-name').first().text().trim();
+  let studentId = null;
   $after('a[href*="/pupil/"]').each((_, el) => {
     const m = $after(el).attr('href').match(/\/pupil\/(\d+)/);
     if (m) { studentId = m[1]; return false; }
@@ -131,9 +106,7 @@ async function getGrades(sessionToken) {
     }
   });
   return subjects;
-}
-
-async function getSchedule(sessionToken) {
+}async function getSchedule(sessionToken) {
   const { jar, studentId } = requireSession(sessionToken);
   const url = studentId ? '/pupil/'+studentId+'/dnevnik/' : '/dnevnik/';
   const res = await jar.get(url);
